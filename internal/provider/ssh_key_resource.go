@@ -145,8 +145,8 @@ func (r *SshKeyResource) Create(
 
 	var payload SshAddPayload
 	args := gql.Arguments{
-		"name":    gql.Optional(data.Name.ValueString()),
-		"keyData": gql.Optional(data.PublicKey.ValueString()),
+		"name":    gql.Required(data.Name.ValueString()),
+		"keyData": gql.Required(data.PublicKey.ValueString()),
 	}
 	if err := r.client.Mutation("sshAdd", &payload, args); err != nil {
 		resp.Diagnostics.AddError("Failed to create SSH key", err.Error())
@@ -190,7 +190,8 @@ func (r *SshKeyResource) Read(
 		}
 	}
 	if key == nil {
-		resp.Diagnostics.AddError("Unknown SSH key", data.Name.String())
+		// Deleted outside Terraform: plan to recreate it.
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	data.update(*key)
@@ -209,7 +210,11 @@ func (r *SshKeyResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	// Update is not supported for SSH keys.
+	// Every attribute forces replacement, so this is never reached; keep the
+	// planned values rather than leaving the state unset.
+	var data SshKeyModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *SshKeyResource) Delete(

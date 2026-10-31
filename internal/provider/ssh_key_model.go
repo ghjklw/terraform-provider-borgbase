@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"strings"
+
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -16,6 +18,13 @@ type SshKeyModel struct {
 	Type       types.String `tfsdk:"type"`
 }
 
+// sameKey reports whether two OpenSSH public keys have the same type and key
+// data; the optional trailing comment and whitespace are ignored.
+func sameKey(a, b string) bool {
+	fa, fb := strings.Fields(a), strings.Fields(b)
+	return len(fa) >= 2 && len(fb) >= 2 && fa[0] == fb[0] && fa[1] == fb[1]
+}
+
 func (m *SshKeyModel) update(key SshKeyPayload) {
 	m.AddedAt = types.StringValue(key.AddedAt)
 	m.Bits = types.Int64Value(int64(key.Bits))
@@ -25,11 +34,13 @@ func (m *SshKeyModel) update(key SshKeyPayload) {
 	m.LastUsedAt = types.StringValue(key.LastUsedAt)
 	m.Name = types.StringValue(key.Name)
 
-	publicKey := key.KeyData
-	if key.Comment != "" {
-		publicKey += " " + key.Comment
+	// BorgBase stores no comment. Keep the configured spelling (comment,
+	// trailing newline) while it denotes the same key, so that it is neither
+	// reported as inconsistent after apply nor as a replacement-forcing change.
+	if m.PublicKey.IsNull() || m.PublicKey.IsUnknown() ||
+		!sameKey(m.PublicKey.ValueString(), key.KeyData) {
+		m.PublicKey = types.StringValue(key.KeyData)
 	}
-	m.PublicKey = types.StringValue(publicKey)
 
 	m.Type = types.StringValue(key.KeyType)
 }
@@ -44,7 +55,6 @@ type SshKeyPayload struct {
 	Name       string `json:"name"`
 	KeyData    string `json:"keyData"`
 	KeyType    string `json:"keyType"`
-	Comment    string `json:"comment"`
 }
 
 type SshKeysPayload []SshKeyPayload
