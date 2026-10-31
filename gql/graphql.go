@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -181,7 +182,15 @@ func generateQuery(operation OperationType,
 ) (string, error) {
 	var variables, arguments []string
 
-	for name, arg := range args {
+	// Sort argument names so the generated query is deterministic.
+	names := make([]string, 0, len(args))
+	for name := range args {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		arg := args[name]
 		t, err := getGraphqlType(arg.Value(), arg.Required())
 		if err != nil {
 			return "", fmt.Errorf("failed to convert field %s: %w", name, err)
@@ -241,11 +250,12 @@ func Execute(client *http.Client,
 		return err
 	}
 
+	defer res.Body.Close()
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
 
 	if res.StatusCode >= http.StatusInternalServerError {
 		return fmt.Errorf("expected status 200, got %d: %s", res.StatusCode, body)
