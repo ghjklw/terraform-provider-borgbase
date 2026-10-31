@@ -127,14 +127,10 @@ func (m *mockBorgBase) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := map[string]interface{}{}
-	raw := req.Variables
-	var asString string
-	if json.Unmarshal(raw, &asString) == nil {
-		raw = json.RawMessage(asString)
-	}
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &vars); err != nil {
-			http.Error(w, err.Error(), 400)
+	// The live API rejects variables that are not a JSON object.
+	if len(req.Variables) > 0 {
+		if err := json.Unmarshal(req.Variables, &vars); err != nil {
+			http.Error(w, "The GraphQL operation's `variables` must be an object or null, if provided.", 400)
 			return
 		}
 	}

@@ -20,8 +20,8 @@ var (
 )
 
 type request struct {
-	Query     string `json:"query"`
-	Variables string `json:"variables"`
+	Query     string                 `json:"query"`
+	Variables map[string]interface{} `json:"variables"`
 }
 
 type response struct {
@@ -228,13 +228,9 @@ func Execute(client *http.Client,
 		_args[key] = arg.Value()
 	}
 
-	variables, err := json.Marshal(_args)
-	if err != nil {
-		return fmt.Errorf("failed to marshal graphql arguments: %w", err)
-	}
-
-	data, err := json.Marshal(&request{
-		Query: query, Variables: string(variables)})
+	// The API requires "variables" to be a JSON object (a JSON-encoded string
+	// is rejected with HTTP 400).
+	data, err := json.Marshal(&request{Query: query, Variables: _args})
 	if err != nil {
 		return fmt.Errorf("failed to marshal graphql query: %w", err)
 	}
@@ -257,8 +253,8 @@ func Execute(client *http.Client,
 		return err
 	}
 
-	if res.StatusCode >= http.StatusInternalServerError {
-		return fmt.Errorf("expected status 200, got %d: %s", res.StatusCode, body)
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("expected status 200, got %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var wrapper response
