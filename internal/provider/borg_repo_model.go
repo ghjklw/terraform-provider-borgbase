@@ -9,6 +9,7 @@ import (
 )
 
 type BorgRepoModel struct {
+	AccessMode     types.String  `tfsdk:"access_mode"`
 	AlertDays      types.Int64   `tfsdk:"alert_days"`
 	AppendOnly     types.Bool    `tfsdk:"append_only"`
 	AppendOnlyKeys types.List    `tfsdk:"append_only_keys"`
@@ -26,7 +27,6 @@ type BorgRepoModel struct {
 	QuotaEnabled   types.Bool    `tfsdk:"quota_enabled"`
 	Region         types.String  `tfsdk:"region"`
 	RepoPath       types.String  `tfsdk:"repo_path"`
-	RsyncKeys      types.List    `tfsdk:"rsync_keys"`
 	Server         types.Object  `tfsdk:"server"`
 	SftpEnabled    types.Bool    `tfsdk:"sftp_enabled"`
 }
@@ -37,6 +37,7 @@ func (m *BorgRepoModel) update(
 ) diag.Diagnostics {
 	var diagnostics diag.Diagnostics
 
+	m.AccessMode = types.StringValue(repo.AccessMode)
 	m.AlertDays = types.Int64Value(int64(repo.AlertDays))
 	m.AppendOnly = types.BoolValue(repo.AppendOnly)
 	m.AppendOnlyKeys, diagnostics = types.ListValueFrom(
@@ -84,15 +85,6 @@ func (m *BorgRepoModel) update(
 	m.QuotaEnabled = types.BoolValue(repo.QuotaEnabled)
 	m.Region = types.StringValue(repo.Region)
 	m.RepoPath = types.StringValue(repo.RepoPath)
-	m.RsyncKeys, diagnostics = types.ListValueFrom(
-		ctx,
-		types.StringType,
-		repo.RsyncKeys,
-	)
-	if diagnostics.HasError() {
-		return diagnostics
-	}
-
 	m.Server, diagnostics = types.ObjectValueFrom(
 		ctx,
 		serverAttributes,
@@ -172,12 +164,10 @@ type BorgRepoPayload struct {
 	Region                 string   `json:"region"`
 	Format                 string   `json:"format"`
 	BorgVersion            string   `json:"borgVersion"`
-	ResticVersion          string   `json:"resticVersion"`
-	Htpasswd               string   `json:"htpasswd"`
+	AccessMode             string   `json:"accessMode"`
 	AppendOnly             bool     `json:"appendOnly"`
 	AppendOnlyKeys         []string `json:"appendOnlyKeys"`
 	FullAccessKeys         []string `json:"fullAccessKeys"`
-	RsyncKeys              []string `json:"rsyncKeys"`
 	SftpEnabled            bool     `json:"sftpEnabled"`
 	Encryption             string   `json:"encryption"`
 	CreatedAt              string   `json:"createdAt"`

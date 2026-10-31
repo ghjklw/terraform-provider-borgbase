@@ -21,10 +21,6 @@ data "borgbase_ssh_key" "full_access" {
   name = "full_access"
 }
 
-data "borgbase_ssh_key" "rsync" {
-  name = "rsync"
-}
-
 resource "borgbase_borg_repo" "repo_minimal" {
   name   = "repo_minimal"
   region = "eu"
@@ -47,7 +43,6 @@ resource "borgbase_borg_repo" "repo_full" {
   quota            = 10000
   quota_enabled    = true
   region           = "eu"
-  rsync_keys       = [data.borgbase_ssh_key.rsync.id]
   sftp_enabled     = true
 }
 ```
@@ -62,6 +57,7 @@ resource "borgbase_borg_repo" "repo_full" {
 
 ### Optional
 
+- `access_mode` (String) Access mode of the repository (e.g. `fullAccess`, `appendOnly`).
 - `alert_days` (Number) Number of days after which an alert should be triggered if no new backups are made.
 - `append_only` (Boolean) Whether the repository should allow old data to be deleted.
 - `append_only_keys` (List of String) IDs of SSH keys which are only allowed to append data to the repository.
@@ -70,7 +66,6 @@ resource "borgbase_borg_repo" "repo_full" {
 - `full_access_keys` (List of String) IDs of SSH keys which have full access to the repository.
 - `quota` (Number) Max allowed size of the repository in megabytes.
 - `quota_enabled` (Boolean) Whether the repository quota should be enabled.
-- `rsync_keys` (List of String) IDs of SSH keys which can access the repository via rsync.
 - `sftp_enabled` (Boolean) Whether SFTP access to the repository should be enabled.
 
 ### Read-Only
@@ -110,4 +105,10 @@ Read-Only:
 - `public` (Boolean) Whether the server is public.
 - `region` (String) Region in which the server is located.
 
+## Import
 
+Repositories are imported by **name** (not by ID):
+
+```shell
+terraform import borgbase_borg_repo.example my-repo-name
+```

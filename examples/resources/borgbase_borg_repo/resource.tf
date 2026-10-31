@@ -6,10 +6,6 @@ data "borgbase_ssh_key" "full_access" {
   name = "full_access"
 }
 
-data "borgbase_ssh_key" "rsync" {
-  name = "rsync"
-}
-
 resource "borgbase_borg_repo" "repo_minimal" {
   name   = "repo_minimal"
   region = "eu"
@@ -32,6 +28,5 @@ resource "borgbase_borg_repo" "repo_full" {
   quota            = 10000
   quota_enabled    = true
   region           = "eu"
-  rsync_keys       = [data.borgbase_ssh_key.rsync.id]
   sftp_enabled     = true
 }

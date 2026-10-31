@@ -7,14 +7,15 @@ import (
 	"github.com/gjabell/terraform-provider-borgbase/gql"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -51,6 +52,14 @@ func (r *BorgRepoResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "BorgBase borg repository.",
 		Attributes: map[string]schema.Attribute{
+			"access_mode": schema.StringAttribute{
+				Computed:            true,
+				Optional:            true,
+				MarkdownDescription: "Access mode of the repository (e.g. `fullAccess`, `appendOnly`).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"alert_days": schema.Int64Attribute{
 				Computed:            true,
 				Optional:            true,
@@ -80,11 +89,17 @@ func (r *BorgRepoResource) Schema(
 				Computed:            true,
 				Optional:            true,
 				MarkdownDescription: "Borg version to use for the repository (defaults to latest stable version).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"compaction": schema.SingleNestedAttribute{
 				Computed:            true,
 				Optional:            true,
 				MarkdownDescription: "Settings for repository compaction.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:            true,
@@ -142,9 +157,6 @@ func (r *BorgRepoResource) Schema(
 			"current_usage": schema.Float64Attribute{
 				Computed:            true,
 				MarkdownDescription: "Current usage of the repository in megabytes.",
-				PlanModifiers: []planmodifier.Float64{
-					float64planmodifier.UseStateForUnknown(),
-				},
 			},
 			"encryption": schema.StringAttribute{
 				Computed:            true,
@@ -179,9 +191,6 @@ func (r *BorgRepoResource) Schema(
 			"last_modified": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Date when the repository was last modified.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
@@ -218,15 +227,6 @@ func (r *BorgRepoResource) Schema(
 				MarkdownDescription: "SSH path where the repository can be accessed.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"rsync_keys": schema.ListAttribute{
-				ElementType:         types.StringType,
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "IDs of SSH keys which can access the repository via rsync.",
-				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"server": schema.SingleNestedAttribute{
@@ -302,72 +302,100 @@ func (r *BorgRepoResource) Configure(
 	r.client = client
 }
 
+// hasChange reports whether a planned value should be sent to the API: it
+// must be known and non-null and, when a prior state exists, differ from it.
+func hasChange(plan, state attr.Value, hasState bool) bool {
+	if plan.IsNull() || plan.IsUnknown() {
+		return false
+	}
+	return !hasState || !plan.Equal(state)
+}
+
+// setArguments adds the GraphQL arguments for every managed attribute that is
+// set in the plan. When state is non-nil (update), only attributes that differ
+// from the prior state are added so that an edit never re-sends (or resets)
+// unrelated settings. Unknown and null plan values are never sent.
 func setArguments(
 	ctx context.Context,
 	args map[string]gql.Argument,
 	data BorgRepoModel,
+	state *BorgRepoModel,
 ) diag.Diagnostics {
 	var diagnostics diag.Diagnostics
-
-	for name, attr := range map[string]basetypes.Int64Value{
-		"alertDays": data.AlertDays,
-		"quota":     data.Quota,
-	} {
-		if !attr.IsNull() || !attr.IsUnknown() {
-			args[name] = gql.Optional(attr.ValueInt64())
-		}
+	hasState := state != nil
+	if !hasState {
+		state = &BorgRepoModel{}
 	}
 
-	for name, attr := range map[string]basetypes.BoolValue{
-		"appendOnly":   data.AppendOnly,
-		"sftpEnabled":  data.SftpEnabled,
-		"quotaEnabled": data.QuotaEnabled,
-	} {
-		if !attr.IsNull() || !attr.IsUnknown() {
-			args[name] = gql.Optional(attr.ValueBool())
-		}
+	if hasChange(data.AlertDays, state.AlertDays, hasState) {
+		args["alertDays"] = gql.Optional(data.AlertDays.ValueInt64())
 	}
-
-	if !data.BorgVersion.IsNull() && !data.BorgVersion.IsUnknown() {
+	if hasChange(data.Quota, state.Quota, hasState) {
+		args["quota"] = gql.Optional(data.Quota.ValueInt64())
+	}
+	if hasChange(data.AppendOnly, state.AppendOnly, hasState) {
+		args["appendOnly"] = gql.Optional(data.AppendOnly.ValueBool())
+	}
+	if hasChange(data.SftpEnabled, state.SftpEnabled, hasState) {
+		args["sftpEnabled"] = gql.Optional(data.SftpEnabled.ValueBool())
+	}
+	if hasChange(data.QuotaEnabled, state.QuotaEnabled, hasState) {
+		args["quotaEnabled"] = gql.Optional(data.QuotaEnabled.ValueBool())
+	}
+	if hasChange(data.BorgVersion, state.BorgVersion, hasState) {
 		args["borgVersion"] = gql.Optional(data.BorgVersion.ValueString())
 	}
+	if hasChange(data.AccessMode, state.AccessMode, hasState) {
+		args["accessMode"] = gql.Optional(data.AccessMode.ValueString())
+	}
 
-	if !data.Compaction.IsNull() && !data.Compaction.IsUnknown() {
-		var compaction CompactionModel
-		diagnostics = data.Compaction.As(
-			ctx,
-			&compaction,
-			basetypes.ObjectAsOptions{},
-		)
+	if hasChange(data.Compaction, state.Compaction, hasState) {
+		var plan, prior CompactionModel
+		diagnostics = data.Compaction.As(ctx, &plan, basetypes.ObjectAsOptions{})
 		if diagnostics.HasError() {
 			return diagnostics
 		}
-		args["compactionEnabled"] = gql.Optional(compaction.Enabled.ValueBool())
-		args["compactionHour"] = gql.Optional(compaction.Hour.ValueInt64())
-		args["compactionHourTimezone"] = gql.Optional(
-			compaction.HourTimezone.ValueString(),
-		)
-		args["compactionInterval"] = gql.Optional(compaction.Interval.ValueInt64())
-		args["compactionIntervalUnit"] = gql.Optional(
-			compaction.IntervalUnit.ValueString(),
-		)
+		if hasState && !state.Compaction.IsNull() && !state.Compaction.IsUnknown() {
+			diagnostics = state.Compaction.As(ctx, &prior, basetypes.ObjectAsOptions{})
+			if diagnostics.HasError() {
+				return diagnostics
+			}
+		}
+		priorKnown := hasState && !state.Compaction.IsNull() && !state.Compaction.IsUnknown()
+		if hasChange(plan.Enabled, prior.Enabled, priorKnown) {
+			args["compactionEnabled"] = gql.Optional(plan.Enabled.ValueBool())
+		}
+		if hasChange(plan.Hour, prior.Hour, priorKnown) {
+			args["compactionHour"] = gql.Optional(plan.Hour.ValueInt64())
+		}
+		if hasChange(plan.HourTimezone, prior.HourTimezone, priorKnown) {
+			args["compactionHourTimezone"] = gql.Optional(plan.HourTimezone.ValueString())
+		}
+		if hasChange(plan.Interval, prior.Interval, priorKnown) {
+			args["compactionInterval"] = gql.Optional(plan.Interval.ValueInt64())
+		}
+		if hasChange(plan.IntervalUnit, prior.IntervalUnit, priorKnown) {
+			args["compactionIntervalUnit"] = gql.Optional(plan.IntervalUnit.ValueString())
+		}
 	}
 
-	for name, attr := range map[string]basetypes.ListValue{
-		"appendOnlyKeys": data.AppendOnlyKeys,
-		"fullAccessKeys": data.FullAccessKeys,
-		"rsyncKeys":      data.RsyncKeys,
+	for _, k := range []struct {
+		name        string
+		plan, state types.List
+	}{
+		{"appendOnlyKeys", data.AppendOnlyKeys, state.AppendOnlyKeys},
+		{"fullAccessKeys", data.FullAccessKeys, state.FullAccessKeys},
 	} {
-		if attr.IsNull() || attr.IsUnknown() {
+		if !hasChange(k.plan, k.state, hasState) {
 			continue
 		}
 
 		var keys []string
-		diagnostics = attr.ElementsAs(ctx, &keys, false)
+		diagnostics = k.plan.ElementsAs(ctx, &keys, false)
 		if diagnostics.HasError() {
 			return diagnostics
 		}
-		args[name] = gql.Optional(keys)
+		args[k.name] = gql.Optional(keys)
 	}
 
 	return diagnostics
@@ -389,7 +417,7 @@ func (r *BorgRepoResource) Create(
 		"name":   gql.Required(data.Name.ValueString()),
 		"region": gql.Required(data.Region.ValueString()),
 	}
-	if diagnostics := setArguments(ctx, args, data); diagnostics.HasError() {
+	if diagnostics := setArguments(ctx, args, data, nil); diagnostics.HasError() {
 		resp.Diagnostics.Append(diagnostics...)
 		return
 	}
@@ -436,7 +464,7 @@ func (r *BorgRepoResource) Read(
 		}
 	}
 	if repo == nil {
-		resp.Diagnostics.AddError("Unknown borg repo", data.Name.String())
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	resp.Diagnostics = append(resp.Diagnostics, data.update(ctx, *repo)...)
@@ -454,18 +482,21 @@ func (r *BorgRepoResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var data BorgRepoModel
+	var data, state BorgRepoModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	args := gql.Arguments{
-		"id":   gql.Required(data.Id.ValueString()),
-		"name": gql.Optional(data.Name.ValueString()),
+	// The id is always required; everything else is sent only when it differs
+	// from the prior state.
+	args := gql.Arguments{"id": gql.Required(state.Id.ValueString())}
+	if hasChange(data.Name, state.Name, true) {
+		args["name"] = gql.Optional(data.Name.ValueString())
 	}
-	if diagnostics := setArguments(ctx, args, data); diagnostics.HasError() {
+	if diagnostics := setArguments(ctx, args, data, &state); diagnostics.HasError() {
 		resp.Diagnostics.Append(diagnostics...)
 		return
 	}

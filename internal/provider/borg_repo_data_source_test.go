@@ -58,7 +58,6 @@ func TestAccBorgRepoDataSource(t *testing.T) {
 						"repo_path",
 						regexp.MustCompile(`ssh://.*@.*\.repo\.borgbase\.com/\./repo`),
 					),
-					resource.TestCheckResourceAttr(id, "rsync_keys.#", "0"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_ecdsa"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_ed25519"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_rsa"),

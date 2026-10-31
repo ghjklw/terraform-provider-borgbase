@@ -59,7 +59,6 @@ func TestAccBorgRepoResource_minimal(t *testing.T) {
 						"repo_path",
 						regexp.MustCompile(`ssh://.*@.*\.repo\.borgbase\.com/\./repo`),
 					),
-					resource.TestCheckResourceAttr(id, "rsync_keys.#", "0"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_ecdsa"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_ed25519"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_rsa"),
@@ -145,7 +144,6 @@ func TestAccBorgRepoResource_full(t *testing.T) {
 						"repo_path",
 						regexp.MustCompile(`ssh://.*@.*\.repo\.borgbase\.com/\./repo`),
 					),
-					resource.TestCheckResourceAttr(id, "rsync_keys.#", "1"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_ecdsa"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_ed25519"),
 					resource.TestCheckResourceAttrSet(id, "server.fingerprint_rsa"),
@@ -197,11 +195,6 @@ resource "borgbase_ssh_key" "terraform_full_access" {
 	public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBAt/X37WDQ3cNPEVHQBsW3lH7XPeea5rUoeXuhoTkzR terraform@localhost"
 }
 
-resource "borgbase_ssh_key" "terraform_rsync" {
-  name       = "rsync"
-	public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBAt/X37WDQ3cNPEVHQBsW3lH7XPeea5rUoeXuhoTkzR terraform@localhost"
-}
-
 resource "borgbase_borg_repo" "test_full" {
   alert_days       = 2
   append_only      = true
@@ -219,7 +212,6 @@ resource "borgbase_borg_repo" "test_full" {
   quota            = 10000
   quota_enabled    = true
 	region           = %q
-  rsync_keys       = [borgbase_ssh_key.terraform_rsync.id]
   sftp_enabled     = true
 }`, name, region)
 }

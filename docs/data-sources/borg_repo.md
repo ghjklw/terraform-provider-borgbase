@@ -27,6 +27,7 @@ data "borgbase_borg_repo" "example" {
 
 ### Read-Only
 
+- `access_mode` (String) Access mode of the repository (e.g. `fullAccess`, `appendOnly`).
 - `alert_days` (Number) Number of days after which an alert should be triggered if no new backups are made.
 - `append_only` (Boolean) Whether the repository should allow old data to be deleted.
 - `append_only_keys` (List of String) IDs of SSH keys which are only allowed to append data to the repository.
@@ -43,7 +44,6 @@ data "borgbase_borg_repo" "example" {
 - `quota_enabled` (Boolean) Whether the repository quota should be enabled.
 - `region` (String) Region where the repository is hosted (eu or us).
 - `repo_path` (String) SSH path where the repository can be accessed.
-- `rsync_keys` (List of String) IDs of SSH keys which can access the repository via rsync.
 - `server` (Attributes) Information about the server where the repository is hosted. (see [below for nested schema](#nestedatt--server))
 - `sftp_enabled` (Boolean) Whether SFTP access to the repository should be enabled.
 

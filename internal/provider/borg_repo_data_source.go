@@ -38,6 +38,10 @@ func (d *BorgRepoDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "BorgBase borg repository.",
 		Attributes: map[string]schema.Attribute{
+			"access_mode": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Access mode of the repository (e.g. `fullAccess`, `appendOnly`).",
+			},
 			"alert_days": schema.Int64Attribute{
 				Computed:            true,
 				MarkdownDescription: "Number of days after which an alert should be triggered if no new backups are made.",
@@ -129,11 +133,6 @@ func (d *BorgRepoDataSource) Schema(
 			"repo_path": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "SSH path where the repository can be accessed.",
-			},
-			"rsync_keys": schema.ListAttribute{
-				ElementType:         types.StringType,
-				Computed:            true,
-				MarkdownDescription: "IDs of SSH keys which can access the repository via rsync.",
 			},
 			"server": schema.SingleNestedAttribute{
 				Computed:            true,
